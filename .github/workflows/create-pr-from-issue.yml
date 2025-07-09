@@ -1,0 +1,51 @@
+name: Create PR from Issue (if format is valid)
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  create-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # ブランチの存在チェックに必要
+
+      - name: Extract branch name from issue title
+        id: extract
+        run: |
+          TITLE="${{ github.event.issue.title }}"
+          if echo "$TITLE" | grep -q "："; then
+            BRANCH_NAME=$(echo "$TITLE" | awk -F '：' '{print $2}' | xargs)
+            echo "✅ Valid format detected: BRANCH_NAME=$BRANCH_NAME"
+            echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+          else
+            echo "⛔ タイトル形式が無効です。スキップします。"
+            echo "branch_name=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check if branch exists
+        id: check_branch
+        if: steps.extract.outputs.branch_name != ''
+        run: |
+          BRANCH_NAME="${{ steps.extract.outputs.branch_name }}"
+          if git ls-remote --exit-code --heads origin "$BRANCH_NAME"; then
+            echo "✅ ブランチ '$BRANCH_NAME' が存在します。"
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "⛔ ブランチ '$BRANCH_NAME' は存在しません。スキップします。"
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Pull Request
+        if: steps.check_branch.outputs.exists == 'true'
+        uses: peter-evans/create-pull-request@v5
+        with:
+          title: "Resolve #${{ github.event.issue.number }} - ${{ github.event.issue.title }}"
+          body: |
+            This PR was automatically created for issue #${{ github.event.issue.number }}.
+            Please check if the implementation matches the intent of the issue.
+          head: "${{ steps.extract.outputs.branch_name }}"
+          base: master
