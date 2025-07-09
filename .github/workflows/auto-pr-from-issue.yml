@@ -2,7 +2,7 @@ name: Auto Create PR from Issue
 
 on:
   issues:
-    types: [opened, edited]
+    types: [opened]
     
 permissions:
   contents: write
