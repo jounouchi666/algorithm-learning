@@ -79,7 +79,7 @@ jobs:
         if: steps.check_branch.outputs.branch_exists == 'true'
         env:
           REPO: ${{ github.repository }}
-          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TOKEN: ${{ secrets.PAT_FOR_ACTIONS }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
         run: |
           LABEL="自動PRが作成されました"
