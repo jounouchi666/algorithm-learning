@@ -40,6 +40,7 @@ jobs:
         if: steps.check_branch.outputs.exists == 'true'
         uses: peter-evans/create-pull-request@v5
         with:
+          token: ${{ secrets.GITHUB_TOKEN }}
           title: "Resolve #${{ github.event.issue.number }} - ${{ github.event.issue.title }}"
           body: |
             This PR was automatically created for issue #${{ github.event.issue.number }}.
