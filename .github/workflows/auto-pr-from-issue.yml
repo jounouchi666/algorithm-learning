@@ -2,7 +2,7 @@ name: Auto Create PR from Issue
 
 on:
   issues:
-    types: [opened]
+    types: [opened, edited]
 
 jobs:
   create-pr:
