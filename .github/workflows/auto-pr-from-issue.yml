@@ -34,7 +34,6 @@ jobs:
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
             -H "Authorization: token $TOKEN" \
             "https://api.github.com/repos/$REPO/branches/$BRANCH")
-
           if [ "$STATUS" = "200" ]; then
             echo "branch_exists=true" >> $GITHUB_OUTPUT
           else
@@ -43,6 +42,7 @@ jobs:
 
       - name: Create Pull Request to master
         if: steps.check_branch.outputs.branch_exists == 'true'
+        id: create_pr
         env:
           REPO: ${{ github.repository }}
           BRANCH: ${{ steps.parse_title.outputs.branch }}
@@ -51,19 +51,17 @@ jobs:
         run: |
           PR_TITLE="自動PR: $BRANCH を master にマージ"
           PR_BODY="このプルリクエストは Issue #$ISSUE_NUMBER から自動作成されました。"
+          JSON_PAYLOAD=$(jq -n \
+            --arg title "$PR_TITLE" \
+            --arg head "$BRANCH" \
+            --arg base "master" \
+            --arg body "$PR_BODY" \
+            '{title: $title, head: $head, base: $base, body: $body}')
           RESPONSE=$(curl -s -X POST \
             -H "Authorization: token $TOKEN" \
             -H "Accept: application/vnd.github.v3+json" \
             https://api.github.com/repos/$REPO/pulls \
-            -d @- <<EOF
-{
-  "title": "$PR_TITLE",
-  "head": "$BRANCH",
-  "base": "master",
-  "body": "$PR_BODY"
-}
-EOF
-)
+            -d "$JSON_PAYLOAD")
           PR_NUMBER=$(echo "$RESPONSE" | jq -r '.number')
           if [ "$PR_NUMBER" = "null" ]; then
             echo "Failed to create PR"
