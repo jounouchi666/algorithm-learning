@@ -35,17 +35,20 @@ jobs:
             echo "exists=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Create Pull Request
-        id: cpr
+      - name: Setup GitHub CLI
+        uses: actions/setup-gh@v2
+
+      - name: Create Pull Request via gh CLI
         if: steps.check_branch.outputs.exists == 'true'
-        uses: peter-evans/pull-request@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          base: master
-          head: "${{ steps.extract.outputs.branch_name }}"
-          title: "Resolve #${{ github.event.issue.number }} - ${{ github.event.issue.title }}"
-          body: |
-            This PR was automatically created for issue #${{ github.event.issue.number }}.
+        run: |
+          gh pr create \
+            --title "Resolve #${{ github.event.issue.number }} - ${{ github.event.issue.title }}" \
+            --body "This PR was automatically created for issue #${{ github.event.issue.number }}." \
+            --base master \
+            --head "${{ steps.extract.outputs.branch_name }}" \
+            --repo ${{ github.repository }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Add label to issue
         if: steps.check_branch.outputs.exists == 'true'
@@ -61,11 +64,20 @@ jobs:
         with:
           script: |
             const issue_number = context.payload.issue.number;
-            const prUrl = '${{ steps.cpr.outputs.pull-request-url }}';
-            const body = `🔗 自動PRが作成されました: ${prUrl}`;
-            await github.rest.issues.createComment({
-              issue_number,
+            // gh pr create は PR URL を標準出力しないので、以下はGitHub APIでPR検索してリンク取得の例
+            const { data: pulls } = await github.rest.pulls.list({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body
+              head: `${context.repo.owner}:${context.payload.issue.title.split('：')[1].trim()}`,
+              state: 'open',
             });
+            if (pulls.length > 0) {
+              const prUrl = pulls[0].html_url;
+              const body = `🔗 自動PRが作成されました: ${prUrl}`;
+              await github.rest.issues.createComment({
+                issue_number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body
+              });
+            }
