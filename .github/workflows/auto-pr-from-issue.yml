@@ -3,6 +3,11 @@ name: Auto Create PR from Issue
 on:
   issues:
     types: [opened, edited]
+    
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
 
 jobs:
   create-pr:
