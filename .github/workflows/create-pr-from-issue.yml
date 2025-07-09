@@ -38,14 +38,14 @@ jobs:
       - name: Create Pull Request
         id: cpr
         if: steps.check_branch.outputs.exists == 'true'
-        uses: peter-evans/create-pull-request@v5
+        uses: peter-evans/pull-request@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          base: master
+          head: "${{ steps.extract.outputs.branch_name }}"
           title: "Resolve #${{ github.event.issue.number }} - ${{ github.event.issue.title }}"
           body: |
             This PR was automatically created for issue #${{ github.event.issue.number }}.
-          branch: "${{ steps.extract.outputs.branch_name }}"
-          base: master
 
       - name: Add label to issue
         if: steps.check_branch.outputs.exists == 'true'
