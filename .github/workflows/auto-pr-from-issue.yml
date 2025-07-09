@@ -1,0 +1,87 @@
+name: Auto Create PR from Issue
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  create-pr:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Parse issue title for branch name
+        id: parse_title
+        run: |
+          TITLE="${{ github.event.issue.title }}"
+          # 全角コロン「：」で分割
+          IFS='：' read -r _branch_prefix BRANCH <<< "$TITLE"
+          if [ -z "$BRANCH" ]; then
+            echo "No branch name found in issue title."
+            echo "proceed=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          echo "branch=$BRANCH" >> $GITHUB_OUTPUT
+          echo "proceed=true" >> $GITHUB_OUTPUT
+
+      - name: Check if branch exists
+        if: steps.parse_title.outputs.proceed == 'true'
+        id: check_branch
+        env:
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ steps.parse_title.outputs.branch }}
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "Authorization: token $TOKEN" \
+            "https://api.github.com/repos/$REPO/branches/$BRANCH")
+
+          if [ "$STATUS" = "200" ]; then
+            echo "branch_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "branch_exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Pull Request to master
+        if: steps.check_branch.outputs.branch_exists == 'true'
+        env:
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ steps.parse_title.outputs.branch }}
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          PR_TITLE="自動PR: $BRANCH を master にマージ"
+          PR_BODY="このプルリクエストは Issue #$ISSUE_NUMBER から自動作成されました。"
+          RESPONSE=$(curl -s -X POST \
+            -H "Authorization: token $TOKEN" \
+            -H "Accept: application/vnd.github.v3+json" \
+            https://api.github.com/repos/$REPO/pulls \
+            -d @- <<EOF
+{
+  "title": "$PR_TITLE",
+  "head": "$BRANCH",
+  "base": "master",
+  "body": "$PR_BODY"
+}
+EOF
+)
+          PR_NUMBER=$(echo "$RESPONSE" | jq -r '.number')
+          if [ "$PR_NUMBER" = "null" ]; then
+            echo "Failed to create PR"
+            echo "$RESPONSE"
+            exit 1
+          fi
+          echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
+
+      - name: Add label to issue
+        if: steps.check_branch.outputs.branch_exists == 'true'
+        env:
+          REPO: ${{ github.repository }}
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          LABEL="自動PRが作成されました"
+          curl -s -X POST \
+            -H "Authorization: token $TOKEN" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/repos/$REPO/issues/$ISSUE_NUMBER/labels" \
+            -d "{\"labels\":[\"$LABEL\"]}"
