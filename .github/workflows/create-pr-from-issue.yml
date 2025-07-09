@@ -43,7 +43,7 @@ jobs:
           title: "Resolve #${{ github.event.issue.number }} - ${{ github.event.issue.title }}"
           body: |
             This PR was automatically created for issue #${{ github.event.issue.number }}.
-          head: "${{ steps.extract.outputs.branch_name }}"
+          branch: "${{ steps.extract.outputs.branch_name }}"
           base: master
 
       - name: Add label to issue
